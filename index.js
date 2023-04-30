@@ -1,62 +1,43 @@
 const express = require("express");
+const connectDB = require("./config/db");
+const TodoModel = require("./models/todoModel");
+const { default: listEndpoints } = require("list_end_points");
+const router = require("./routes/index.routes");
 const app = express();
 const port = 3000;
+require("dotenv").config();
 app.use(express.json());
-const todos = [
-  { id: 1, text: "Hello", status: "ONGOING" },
-  { id: 2, text: "Hey", status: "COMPLETED" },
-  { id: 3, text: "I need to chop", status: "CANCELLED" },
-];
 
-app.get("/", (request, response) => {
-  response.json(todos);
-});
-app.get("/:id", (request, response) => {
-  const { id } = request.params;
-  const item = todos.find((value) => {
-    return value.id == id;
-  });
-  console.log(item);
-  if (!item) response.json({ message: "no item found" });
-  else response.json(item);
-});
-app.post("/createTodo", (request, response) => {
-  const lastItem = todos[todos.length - 1];
-  const newId = lastItem.id + 1;
+app.use("", router);
+
+app.post("/createTodo", async (request, response) => {
   const body = request.body;
-  const newItem = { text: body.text, id: newId, status: "ONGOING" };
-  todos.push(newItem);
+  await TodoModel.create({
+    text: body.text,
+    status: "ONGOING",
+  });
   response.json({ message: "Todo added successfully" });
 });
-app.put("/updateTodo", (req, res) => {
-  const { status, id } = req.body;
-  let index = -1;
-  for (let i = 0; i < todos.length; i++) {
-    const item = todos[i];
-    if (item.id == id) index = i;
-  }
-
-  if (index < 0) return response.json({ message: "no item found" });
-  todos[index] = {
-    ...todos[index],
-    status,
-  };
-  res.json({ message: `Todo with id :${id} updated successfully` });
+app.use((request, response, next) => {
+  next(new Error("404"));
 });
-app.delete("/:id", (request, response) => {
-  const { id } = request.params;
-  let index = -1;
-  for (let i = 0; i < todos.length; i++) {
-    const item = todos[i];
-    if (item.id == id) index = i;
+app.use((error, req, res, next) => {
+  if (error.message == "404") {
+    return res.status(404).json({ message: "Page not found" });
   }
-
-  if (index < 0) return response.json({ message: "no item found" });
-  todos.splice(index, 1);
-  response.json({ message: `Todo with id :${id} deleted successfully` });
+  console.log(error);
+  res.status(error.statusCode || 500).json({
+    message: error.message || "an error occur",
+    body: req.body,
+    stack: error.stack,
+  });
 });
 // CRUD
 // CREATE,READ,UPDATE and DELETE
-app.listen(port, () => {
-  console.log(`Todo app listening on port ${port}`);
+connectDB().then(() => {
+  // server start listening
+  app.listen(port, () => {
+    listEndpoints(app);
+    console.log(`Todo app listening on port ${port}`);
+  });
 });
